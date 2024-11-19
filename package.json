@@ -1,15 +1,16 @@
 {
   "name": "back-end-dashboard",
   "version": "1.0.0",
+  "author": "SR VINIX",
   "description": "",
   "main": "index.js",
+  "private": false,
   "scripts": {
     "dev": "ts-node-dev ./src/index.ts",
     "start": "ts-node src/index.ts",
     "build": "tsc -p tsconfig.json"
   },
   "keywords": [],
-  "author": "",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^5.22.0",
