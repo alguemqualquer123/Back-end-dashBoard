@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import routes from "@routes/userRoutes";
 const app = express();
 import cors from "cors";
+import { startCodeUpdater } from "./controllers/authCode";
 
 // app.use(
 //   cors({
@@ -55,5 +56,7 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
   testConnection();
+  startCodeUpdater()
+
   console.log(`Server is running on http://localhost:${PORT}`);
 });

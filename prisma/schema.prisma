@@ -20,6 +20,7 @@ model User {
   password String
   avatar   String?
   Licenses Licenses[]
+  currentCode String?
 }
 
 model Admin {
