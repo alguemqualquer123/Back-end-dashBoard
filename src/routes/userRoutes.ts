@@ -10,10 +10,15 @@ import deleteLicense from "@/models/deleteLicense";
 import { isAdmin } from "@/models/isAdmin";
 import alteruserIp from "@/models/alteruserIp";
 import { getUserInfos } from "@/models/getUserInfos";
+import { createCategory } from "@/models/shop/category/createCategory";
+import { deleteCategory } from "@/models/shop/category/deleteCategory";
+import { createProduct } from "@/models/shop/product/createProduct";
+import { deleteProduct } from "@/models/shop/product/deleteProduct";
+import { getAllProducts } from "@/models/shop/product/getAllProducts";
+import { updateProduct } from "@/models/shop/product/updateProduct";
 dotenv.config();
 
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
 
 export default (prisma: PrismaClient) => {
   const router = Router();
@@ -23,7 +28,6 @@ export default (prisma: PrismaClient) => {
   // "email": "danilovinicius1790@gmail.com",
   // "password": "aaa"
   // }
-
   router.post(
     "/register",
     authenticateJWT,
@@ -78,14 +82,12 @@ export default (prisma: PrismaClient) => {
       }
     }
   );
-
   // http://localhost:4041/login
   // {
   //  "email": "danilovinicius1790@gmail.com",
   //  "password": "aaa"
   // }
   //
-
   router.post("/login", async (req: any, res: any): Promise<void> => {
     const { email, password } = req.body;
 
@@ -426,6 +428,8 @@ export default (prisma: PrismaClient) => {
     }
   );
 
+  // http://localhost:4041/editIp
+  // Rota para editar ip
   router.post(
     "/editIp",
     authenticateJWT,
@@ -463,6 +467,8 @@ export default (prisma: PrismaClient) => {
     }
   );
 
+  // http://localhost:4041/getUserInfos
+  // Rota para pegar informações do usuario
   router.post(
     "/getUserInfos",
     authenticateJWT,
@@ -490,5 +496,209 @@ export default (prisma: PrismaClient) => {
       }
     }
   );
+
+  // http://localhost:4041/shop/createCategory
+  // Rota para criar categoria de produtos
+  router.post(
+    "/shop/createCategory",
+    authenticateJWT,
+    async (req: any, res: any) => {
+      const { name } = req.body;
+      const userEmail = req.user.email;
+      try {
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
+
+        if (!name) {
+          res.status(401).json({ error: "name is required." });
+          return;
+        }
+        const isCreate = await createCategory(name);
+
+        if (isCreate) {
+          res
+            .status(200)
+            .json({ message: "Categoria de produtos criada com sucesso." });
+          return;
+        } else {
+          res
+            .status(401)
+            .json({ error: "falha ao criar categoria de produtos." });
+          return;
+        }
+      } catch (error) {
+        console.error("Error in createCategory", error);
+        res.status(500).json({ error: "Internal server error." });
+      }
+    }
+  );
+
+  // http://localhost:4041/shop/deleteCategory
+  // Rota para deletar categoria de produtos
+  router.post(
+    "/shop/deleteCategory",
+    authenticateJWT,
+    async (req: any, res: any) => {
+      const { name } = req.body;
+      const userEmail = req.user.email;
+      try {
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
+
+        if (!name) {
+          res.status(401).json({ error: "name is required." });
+          return;
+        }
+        const isDelete = await deleteCategory(name);
+
+        if (isDelete) {
+          res
+            .status(200)
+            .json({ message: "Categoria de produtos deletada com sucesso." });
+          return;
+        } else {
+          res
+            .status(401)
+            .json({ error: "falha ao deletar categoria de produtos." });
+          return;
+        }
+      } catch (error) {
+        console.error("Error in deleteCategory", error);
+        res.status(500).json({ error: "Internal server error." });
+      }
+    }
+  );
+
+  // http://localhost:4041/shop/allProducts
+  // Rota para pegar todos os produtos
+  router.get("/shop/allProducts", authenticateJWT, async (_: any, res: any) => {
+    try {
+      const AllProducts = await getAllProducts();
+      if (AllProducts) {
+        console.log(AllProducts);
+        res.status(200).json({ AllProducts });
+        return;
+      } else {
+        res.status(401).json({ error: "Falha ao coletar produtos." });
+        return;
+      }
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error." });
+    }
+  });
+
+  // http://localhost:4041/shop/createProduct
+  // Rota para criar produtos
+  router.post(
+    "/shop/createProduct",
+    authenticateJWT,
+    async (req: any, res: any) => {
+      const { name, description, price, stock, categoryId } = req.body;
+      const userEmail = req.user.email;
+      try {
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
+        const isCreateProduct = await createProduct(
+          name,
+          description,
+          price,
+          stock,
+          categoryId
+        );
+        if (isCreateProduct) {
+          res.status(200).json({ message: "Produto criado com sucesso." });
+          return;
+        } else {
+          res.status(401).json({ error: "falha ao criar produto." });
+          return;
+        }
+      } catch (error) {
+        res.status(500).json({ error: "Internal server error." });
+      }
+    }
+  );
+  // http://localhost:4041/shop/deleteProduct
+  // Rota para deletar produtos
+  router.post(
+    "/shop/deleteProduct",
+    authenticateJWT,
+    async (req: any, res: any) => {
+      const { id } = req.body;
+      const userEmail = req.user.email;
+      try {
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
+        if (!id) {
+          res.status(401).json({ error: "id do produto não definido." });
+          return;
+        }
+
+        const isDeleteProduct = await deleteProduct(id);
+        if (isDeleteProduct) {
+          res.status(200).json({ message: "Produto deletado com sucesso." });
+          return;
+        } else {
+          res.status(401).json({ error: "falha ao deletar produto." });
+          return;
+        }
+      } catch (error) {
+        res.status(500).json({ error: "Internal server error." });
+      }
+    }
+  );
+  // http://localhost:4041/shop/updateProduct
+  // Rota para atualizar produtos
+  router.put(
+    "/shop/updateProduct",
+    authenticateJWT,
+    async (req: any, res: any) => {
+      const { id, name, description, price, stock, categoryId, image } =
+        req.body;
+      const userEmail = req.user.email;
+      try {
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
+        const isUpdated = await updateProduct(
+          id,
+          name,
+          description,
+          price,
+          stock,
+          categoryId,
+          image
+        );
+        if (isUpdated) {
+          res.status(200).json({ message: "Produto atualizado com sucesso." });
+          return;
+        } else {
+          res.status(401).json({ error: "falha ao atualizar produto." });
+          return;
+        }
+      } catch (error) {
+        res.status(500).json({ error: "Internal server error." });
+      }
+    }
+  );
+
   return router;
 };

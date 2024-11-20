@@ -42,3 +42,24 @@ model Licenses {
   user      User?    @relation(fields: [userId], references: [id])///
 }
 
+/////////////////////////////////////// PRODUTOS //////////////////////////////////////////////////
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  products  Product[] // Relacionamento com produtos
+}
+
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  image       String?
+  description String?
+  price       Float     @default(0)
+  stock       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  categoryId  Int       // Chave estrangeira que referencia Category
+  category    Category  @relation(fields: [categoryId], references: [id])
+}
