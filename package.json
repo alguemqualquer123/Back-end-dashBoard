@@ -14,6 +14,7 @@
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@types/express-rate-limit": "^6.0.2",
     "back-end-dashboard": "file:",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",

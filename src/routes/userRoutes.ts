@@ -4,12 +4,13 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import dotenv from "dotenv";
+import rateLimit from "express-rate-limit";
 import { authenticateJWT } from "@/middleware/middleware";
-import createLicense from "@/models/createLicense";
-import deleteLicense from "@/models/deleteLicense";
-import { isAdmin } from "@/models/isAdmin";
-import alteruserIp from "@/models/alteruserIp";
-import { getUserInfos } from "@/models/getUserInfos";
+import createLicense from "@/models/license/createLicense";
+import deleteLicense from "@/models/license/deleteLicense";
+import { isAdmin } from "@/models/staff/isAdmin";
+import alteruserIp from "@/models/license/alteruserIp";
+import { getUserInfos } from "@/models/user/getUserInfos";
 import { createCategory } from "@/models/shop/category/createCategory";
 import { deleteCategory } from "@/models/shop/category/deleteCategory";
 import { createProduct } from "@/models/shop/product/createProduct";
@@ -20,9 +21,26 @@ dotenv.config();
 
 const storage = multer.memoryStorage();
 
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5, // Limite de 5 tentativas
+  message: "Muitas tentativas de login. Tente novamente mais tarde.",
+});
+
 export default () => {
-  const prisma = new PrismaClient()
+  const prisma = new PrismaClient();
   const router = Router();
+
+  router.get(
+    "/settings/store",
+    // authenticateJWT,
+    async (req: any, res: any): Promise<void> => {
+      res.status(200).json({
+        name: process.env.StoreName || "Não Definido",
+        image: process.env.StoreImage || "",
+      });
+    }
+  );
   // http://localhost:4041/register
   // {
   // "name": "Vini Santos",
@@ -65,7 +83,7 @@ export default () => {
           return;
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password, 124);
 
         const user = await prisma.user.create({
           data: {
@@ -89,45 +107,112 @@ export default () => {
   //  "password": "aaa"
   // }
   //
-  router.post("/login", async (req: any, res: any): Promise<void> => {
-    const { email, password } = req.body;
+  router.post(
+    "/login",
+    loginLimiter,
+    async (req: any, res: any): Promise<void> => {
+      const authHeader = req.headers.authorization;
+      const { email, password } = req.body;
 
-    if (!email) {
-      res.status(400).json({ message: "Email não definido." });
-      return;
-    }
+      if (authHeader) {
+        const token = authHeader.split(" ")[1];
 
-    if (!password) {
-      res.status(400).json({ message: "Senha não definida." });
-      return;
-    }
+        try {
+          const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET || "your_jwt_secret"
+          );
+          return res.status(200).json({
+            message: "Usuário já está logado."
+          });
+        } catch (error: any) {
+          if (error.name === "TokenExpiredError") {
+            if (!email || !password) {
+              return res.status(401).json({
+                message:
+                  "Token expirado. Informe email e senha para fazer login novamente.",
+              });
+            }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+            const user = await prisma.user.findUnique({
+              where: { email },
+            });
 
-    if (!user) {
-      res.status(400).json({ message: "Usuário não encontrado." });
-      return;
-    }
+            if (!user) {
+              return res
+                .status(400)
+                .json({ message: "Usuário não encontrado." });
+            }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      res.status(400).json({ message: "Senha inválida." });
-      return;
-    }
+            const isPasswordValid = await bcrypt.compare(
+              password,
+              user.password
+            );
+            if (!isPasswordValid) {
+              return res.status(400).json({ message: "Senha inválida." });
+            }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      process.env.JWT_SECRET || "your_jwt_secret",
-      {
-        expiresIn: "12h",
+            const newToken = jwt.sign(
+              { id: user.id, email: user.email },
+              process.env.JWT_SECRET || "your_jwt_secret",
+              {
+                algorithm: "HS256",
+                expiresIn: "30m",
+              } 
+            );
+
+            return res.json({
+              message: "Login renovado com sucesso!",
+              token: newToken,
+            });
+          } else if (error.name === "JsonWebTokenError") {
+            return res.status(401).json({ message: "Token inválido." });
+          } else {
+            return res.status(500).json({
+              message: "Erro ao verificar token.",
+              error: error.message,
+            });
+          }
+        }
       }
-    );
 
-    res.json({ message: "Login bem-sucedido!", token });
-  });
+      if (!email) {
+        res.status(400).json({ message: "Email não definido." });
+        return;
+      }
 
+      if (!password) {
+        res.status(400).json({ message: "Senha não definida." });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        res.status(400).json({ message: "Usuário não encontrado." });
+        return;
+      }
+
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        res.status(400).json({ message: "Senha inválida." });
+        return;
+      }
+
+      const token = jwt.sign(
+        { id: user.id, email: user.email },
+        process.env.JWT_SECRET || "your_jwt_secret",
+        {
+          algorithm: "HS256",
+          expiresIn: "30m",
+        }
+      );
+
+      res.json({ message: "Login bem-sucedido!", token });
+    }
+  );
   // http://localhost:4041/createLicense
   router.post("/createLicense", authenticateJWT, async (req: any, res: any) => {
     const { email, resource, ip, days } = req.body;

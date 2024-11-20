@@ -13,6 +13,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
+model Store {
+  id       Int    @id @default(autoincrement())
+  name     String
+  logo     String
+}
+
 model User {
   id       Int    @id @default(autoincrement())
   name     String
