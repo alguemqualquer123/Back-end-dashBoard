@@ -6,6 +6,10 @@ import multer from "multer";
 import dotenv from "dotenv";
 import { authenticateJWT } from "@/middleware/middleware";
 import createLicense from "@/models/createLicense";
+import deleteLicense from "@/models/deleteLicense";
+import { isAdmin } from "@/models/isAdmin";
+import alteruserIp from "@/models/alteruserIp";
+import { getUserInfos } from "@/models/getUserInfos";
 dotenv.config();
 
 const storage = multer.memoryStorage();
@@ -23,33 +27,41 @@ export default (prisma: PrismaClient) => {
   router.post(
     "/register",
     authenticateJWT,
-    async (req: Request, res: Response): Promise<void> => {
+    async (req: any, res: any): Promise<void> => {
       const { name, email, password } = req.body;
 
-      if (!name) {
-        res.status(400).json({ message: "Nome de úsuario não definido." });
-        return;
-      }
-      if (!email) {
-        res.status(400).json({ message: "Email não definido." });
-        return;
-      }
-      if (!password) {
-        res.status(400).json({ message: "Senha não definida." });
-        return;
-      }
-      const existingUser = await prisma.user.findUnique({
-        where: { email },
-      });
-
-      if (existingUser) {
-        res.status(400).json({ message: "Usuário já existe." });
-        return;
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-
+      const userEmail = req.user.email;
       try {
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
+
+        if (!name) {
+          res.status(400).json({ message: "Nome de úsuario não definido." });
+          return;
+        }
+        if (!email) {
+          res.status(400).json({ message: "Email não definido." });
+          return;
+        }
+        if (!password) {
+          res.status(400).json({ message: "Senha não definida." });
+          return;
+        }
+        const existingUser = await prisma.user.findUnique({
+          where: { email },
+        });
+
+        if (existingUser) {
+          res.status(400).json({ message: "Usuário já existe." });
+          return;
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
         const user = await prisma.user.create({
           data: {
             name,
@@ -74,7 +86,7 @@ export default (prisma: PrismaClient) => {
   // }
   //
 
-  router.post("/login", async (req: Request, res: Response): Promise<void> => {
+  router.post("/login", async (req: any, res: any): Promise<void> => {
     const { email, password } = req.body;
 
     if (!email) {
@@ -106,7 +118,7 @@ export default (prisma: PrismaClient) => {
       { id: user.id, email: user.email },
       process.env.JWT_SECRET || "your_jwt_secret",
       {
-        expiresIn: "1h",
+        expiresIn: "12h",
       }
     );
 
@@ -114,59 +126,57 @@ export default (prisma: PrismaClient) => {
   });
 
   // http://localhost:4041/createLicense
-  router.post(
-    "/createLicense",
-    authenticateJWT,
-    async (req: Request, res: Response) => {
-      const { email, resource, ip, days } = req.body;
-      const authorization = req.headers.authorization;
+  router.post("/createLicense", authenticateJWT, async (req: any, res: any) => {
+    const { email, resource, ip, days } = req.body;
+    const userEmail = req.user.email;
 
-      if (!authorization) {
-        return res.status(401).json({ message: "Token não fornecido." });
+    try {
+      const adminStatus = await isAdmin(userEmail);
+
+      if (!adminStatus) {
+        res.status(401).json({ error: "Not Is Admin." });
+        return;
+      }
+      if (!email) {
+        res.status(400).json({ message: "Email não definido." });
+        return;
       }
 
-      try {
-        if (!email) {
-          res.status(400).json({ message: "Email não definido." });
-          return;
-        }
-
-        const user = await prisma.user.findUnique({ where: { email } });
-        const userId = user?.id;
-        if (!userId) {
-          return res.status(401).json({ message: "Usuário não autenticado." });
-        }
-
-        if (!resource) {
-          res.status(400).json({ message: "Resource não definido." });
-          return;
-        }
-
-        if (!ip) {
-          res.status(400).json({ message: "IP não definida." });
-          return;
-        }
-
-        if (!userId) {
-          new Error("id Não Definido.");
-          return false;
-        }
-
-        const newLicense = createLicense(prisma, userId, resource, ip, days);
-        if (newLicense) {
-          res.json({ message: "Licensa gerada com sucesso!", newLicense });
-          return newLicense;
-        }
-      } catch (error) {
-        return res.status(401).json({ error: error });
+      const user = await prisma.user.findUnique({ where: { email } });
+      const userId = user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado." });
       }
+
+      if (!resource) {
+        res.status(400).json({ message: "Resource não definido." });
+        return;
+      }
+
+      if (!ip) {
+        res.status(400).json({ message: "IP não definida." });
+        return;
+      }
+
+      if (!userId) {
+        new Error("id Não Definido.");
+        return false;
+      }
+
+      const newLicense = createLicense(prisma, userId, resource, ip, days);
+      if (newLicense) {
+        res.json({ message: "Licensa gerada com sucesso!", newLicense });
+        return newLicense;
+      }
+    } catch (error) {
+      return res.status(401).json({ error: error });
     }
-  );
+  });
   // http://localhost:4041/getUserResources
   router.get(
     "/getUserResources",
     authenticateJWT,
-    async (req: Request, res: Response): Promise<any> => {
+    async (req: any, res: any): Promise<any> => {
       try {
         const { email } = req.body;
         const user = await prisma.user.findUnique({ where: { email } });
@@ -185,10 +195,16 @@ export default (prisma: PrismaClient) => {
   router.post(
     "/insertAdmin",
     authenticateJWT,
-    async (req: Request, res: Response): Promise<void> => {
+    async (req: any, res: any): Promise<void> => {
       const { newRole, email } = req.body;
-
+      const userEmail = req.user.email;
       try {
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
         if (!newRole || !email) {
           res.status(400).json({ error: "Role and email are required." });
           return;
@@ -245,21 +261,20 @@ export default (prisma: PrismaClient) => {
   );
 
   // http://localhost:4041/promoteAdmin
-  router.put(
-    "/promoteAdmin",
-    async (req: Request, res: Response): Promise<void> => {
-      const { email, newRole } = req.body;
+  router.put("/promoteAdmin", async (req: any, res: any): Promise<void> => {
+    const { email, newRole } = req.body;
+    const userEmail = req.user.email;
+    const validRoles = [
+      "Ceo",
+      "Coo",
+      "Gerente",
+      "Vendedor",
+      "Parceiro",
+      "Cliente",
+      "Membro",
+    ];
 
-      const validRoles = [
-        "Ceo",
-        "Coo",
-        "Gerente",
-        "Vendedor",
-        "Parceiro",
-        "Cliente",
-        "Membro",
-      ];
-
+    try {
       if (!email || !newRole || !validRoles.includes(newRole)) {
         res
           .status(400)
@@ -267,68 +282,77 @@ export default (prisma: PrismaClient) => {
         return;
       }
 
-      try {
-        const existingAdmin = await prisma.admin.findUnique({
-          where: { email },
-        });
+      const adminStatus = await isAdmin(userEmail);
 
-        if (!existingAdmin) {
-          res.status(404).json({ error: "Admin not found." });
-          return;
-        }
-
-        const updatedAdmin = await prisma.admin.update({
-          where: { email },
-          data: { role: newRole },
-        });
-
-        res.status(200).json(updatedAdmin);
-      } catch (error) {
-        console.error("Error promoting admin:", error);
-        res.status(500).json({ error: "Internal server error." });
+      if (!adminStatus) {
+        res.status(401).json({ error: "Not Is Admin." });
+        return;
       }
+
+      const existingAdmin = await prisma.admin.findUnique({
+        where: { email },
+      });
+
+      if (!existingAdmin) {
+        res.status(404).json({ error: "Admin not found." });
+        return;
+      }
+
+      const updatedAdmin = await prisma.admin.update({
+        where: { email },
+        data: { role: newRole },
+      });
+
+      res.status(200).json(updatedAdmin);
+    } catch (error) {
+      console.error("Error promoting admin:", error);
+      res.status(500).json({ error: "Internal server error." });
     }
-  );
+  });
 
   // http://localhost:4041/demitAdmin
   // Rota para demitir um administrador
-  router.delete(
-    "/demitAdmin",
-    async (req: Request, res: Response): Promise<void> => {
-      const { email } = req.body;
+  router.delete("/demitAdmin", async (req: any, res: any): Promise<void> => {
+    const { email } = req.body;
+    const userEmail = req.user.email;
 
+    try {
       if (!email) {
         res.status(400).json({ error: "Email is required." });
         return;
       }
+      const adminStatus = await isAdmin(userEmail);
 
-      try {
-        const existingAdmin = await prisma.admin.findUnique({
-          where: { email },
-        });
-
-        if (!existingAdmin) {
-          res.status(404).json({ error: "Admin not found." });
-          return;
-        }
-
-        await prisma.admin.delete({
-          where: { email },
-        });
-
-        res.status(200).json({ message: "Admin demitted successfully." });
-      } catch (error) {
-        console.error("Error demitting admin:", error);
-        res.status(500).json({ error: "Internal server error." });
+      if (!adminStatus) {
+        res.status(401).json({ error: "Not Is Admin." });
+        return;
       }
-    }
-  );
 
- // http://localhost:4041/checkIsAdmin
+      const existingAdmin = await prisma.admin.findUnique({
+        where: { email },
+      });
+
+      if (!existingAdmin) {
+        res.status(404).json({ error: "Admin not found." });
+        return;
+      }
+
+      await prisma.admin.delete({
+        where: { email },
+      });
+
+      res.status(200).json({ message: "Admin demitted successfully." });
+    } catch (error) {
+      console.error("Error demitting admin:", error);
+      res.status(500).json({ error: "Internal server error." });
+    }
+  });
+
+  // http://localhost:4041/checkIsAdmin
   router.post(
     "/checkIsAdmin",
     authenticateJWT,
-    async (req: Request, res: Response): Promise<void> => {
+    async (req: any, res: any): Promise<void> => {
       const { email } = req.body;
 
       try {
@@ -336,16 +360,12 @@ export default (prisma: PrismaClient) => {
           res.status(400).json({ error: "Role and email are required." });
           return;
         }
-        const validAdmins = [
-          "Ceo",
-          "Coo",
-          "Gerente",
-        ];
+        const validAdmins = ["Ceo", "Coo", "Gerente"];
 
         const existingEmail = await prisma.user.findUnique({
           where: { email },
         });
-        
+
         if (!existingEmail) {
           res.status(400).json({ error: "Email não cadastrado." });
           return;
@@ -361,7 +381,7 @@ export default (prisma: PrismaClient) => {
         if (validAdmins.includes(existingAdmin.role)) {
           res.status(200).send(true);
           return;
-        }else{
+        } else {
           res.status(200).send(false);
           return;
         }
@@ -374,5 +394,101 @@ export default (prisma: PrismaClient) => {
     }
   );
 
+  // http://localhost:4041/deleteLicense
+  router.post(
+    "/deleteLicense",
+    authenticateJWT,
+    async (req: any, res: any): Promise<any> => {
+      const { license } = req.body;
+      const userEmail = req.user.email;
+
+      try {
+        if (!license) {
+          res.status(401).json({ error: "License is required." });
+          return;
+        }
+
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
+
+        const deleteSecret = await deleteLicense(prisma, license);
+        if (deleteSecret) {
+          res.status(200).json({ message: "Licensa deletada com sucesso" });
+          return;
+        }
+      } catch (error) {
+        res.status(404).json({ error: error });
+      }
+    }
+  );
+
+  router.post(
+    "/editIp",
+    authenticateJWT,
+    async (req: any, res: any): Promise<any> => {
+      const { license, ip } = req.body;
+      const userEmail = req.user.email;
+
+      try {
+        if (!license) {
+          res.status(401).json({ error: "License is required." });
+          return;
+        }
+        if (!ip) {
+          res.status(401).json({ error: "IP is required." });
+          return;
+        }
+
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
+        const isAlterIp = await alteruserIp(license, ip);
+        if (isAlterIp) {
+          res.status(200).json({ message: "IP alterado com sucesso." });
+          return;
+        } else {
+          res.status(404).json({ error: "License not found." });
+        }
+      } catch (error) {
+        console.error("Error in editIp:", error);
+        res.status(500).json({ error: "Internal server error." });
+      }
+    }
+  );
+
+  router.post(
+    "/getUserInfos",
+    authenticateJWT,
+    async (req: any, res: any): Promise<any> => {
+      const userEmail = req.user.email;
+
+      try {
+        const adminStatus = await isAdmin(userEmail);
+
+        if (!adminStatus) {
+          res.status(401).json({ error: "Not Is Admin." });
+          return;
+        }
+
+        const getUser = await getUserInfos(req.body);
+        if (getUser) {
+          res.status(200).json(getUser);
+          return;
+        } else {
+          res.status(404).json({ error: "User not found." });
+        }
+      } catch (error) {
+        console.error("Error in get user:", error);
+        res.status(500).json({ error: "Internal server error." });
+      }
+    }
+  );
   return router;
 };

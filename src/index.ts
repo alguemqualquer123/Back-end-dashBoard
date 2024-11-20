@@ -2,6 +2,17 @@ import express, { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import routes from "@routes/userRoutes";
 const app = express();
+import cors from "cors";
+
+// app.use(
+//   cors({
+//     origin: ["*", "https://example.com", "https://another-example.com"], // only allow requests from these origins
+//     methods: ["GET", "POST", "PUT", "DELETE"], // only allow these methods
+//     headers: ["Content-Type", "Authorization"], // only allow these headers
+//     maxAge: 3600, // set the max age of the CORS configuration
+//     credentials: true, // allow credentials (e.g., cookies) to be sent with requests
+//   })
+// );
 
 const prisma = new PrismaClient({
   datasources: {
@@ -26,7 +37,7 @@ app.use(express.json());
 app.use("/", routes(prisma));
 
 app.use((req, res, next) => {
-  console.log(`Request Method: ${req.method}, Request URL: ${req.url}`);
+  // console.log(`Request Method: ${req.method}, Request URL: ${req.url}`);
   next();
 });
 

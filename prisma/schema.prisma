@@ -36,6 +36,7 @@ model Licenses {
   ip        String
   time      DateTime
   expiredIn DateTime
+  price     Int @default(0)
   userId    Int? // Chave estrangeira que referencia o User
   user      User?    @relation(fields: [userId], references: [id])///
 }
