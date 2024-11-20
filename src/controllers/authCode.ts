@@ -2,16 +2,17 @@ import { PrismaClient } from "@prisma/client";
 import { Worker } from "worker_threads";
 import path from "path";
 import dotenv from "dotenv";
-const prisma = new PrismaClient();
+
 dotenv.config();
 
 const isDebugMode = process.env.DEBUGMODE === "true";
 export async function startCodeUpdater() {
+  const prisma = new PrismaClient();
   const workerPath = path.resolve(__dirname, "codeUpdater.js");
 
   const worker = new Worker(workerPath);
 
-  const users = await prisma.user.findMany();
+  let users = await prisma.user.findMany();
   worker.postMessage({ users });
 
   worker.on(
@@ -21,10 +22,12 @@ export async function startCodeUpdater() {
         where: { id: updatedUser.id },
         data: { currentCode: updatedUser.code },
       });
+      
       if (isDebugMode) {
         console.log(
           `Código atualizado para o usuário: ${updatedUser.email} : ${updatedUser.code}`
         );
+      
       }
     }
   );

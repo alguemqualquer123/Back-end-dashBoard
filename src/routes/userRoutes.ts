@@ -20,7 +20,8 @@ dotenv.config();
 
 const storage = multer.memoryStorage();
 
-export default (prisma: PrismaClient) => {
+export default () => {
+  const prisma = new PrismaClient()
   const router = Router();
   // http://localhost:4041/register
   // {

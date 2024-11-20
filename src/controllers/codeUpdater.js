@@ -14,5 +14,5 @@ parentPort.on("message", ({ users }) => {
   update();
   setInterval(() => {
     update();
-  }, 5 * 1000);
+  }, process.env.TIME_RESET_CODE || 30 * 1000);
 });
