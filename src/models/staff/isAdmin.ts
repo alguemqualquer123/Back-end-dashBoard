@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
 export const validRoles = ["Ceo", "Coo", "Gerente"];
-const DefaultRole = "Membro";
+export const DefaultRole: string = "Membro";
 
 export async function isAdmin(email: string): Promise<boolean> {
   const prisma = new PrismaClient();

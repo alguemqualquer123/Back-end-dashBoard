@@ -14,5 +14,5 @@ parentPort.on("message", ({ users }) => {
   update();
   setInterval(() => {
     update();
-  }, 30 * 1000);
+  }, 5 * 1000);
 });

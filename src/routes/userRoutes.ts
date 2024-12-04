@@ -1,14 +1,15 @@
 import { Router, Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+// import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import multer from "multer";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import { authenticateJWT } from "@/middleware/middleware";
 import createLicense from "@/models/license/createLicense";
 import deleteLicense from "@/models/license/deleteLicense";
-import { isAdmin } from "@/models/staff/isAdmin";
+import { DefaultRole, isAdmin } from "@/models/staff/isAdmin";
 import alteruserIp from "@/models/license/alteruserIp";
 import { getUserInfos } from "@/models/user/getUserInfos";
 import { createCategory } from "@/models/shop/category/createCategory";
@@ -83,7 +84,7 @@ export default () => {
           return;
         }
 
-        const hashedPassword = await bcrypt.hash(password, 124);
+        const hashedPassword = await bcrypt.hash(password, 20);
 
         const user = await prisma.user.create({
           data: {
@@ -107,102 +108,271 @@ export default () => {
   //  "password": "aaa"
   // }
   //
-  router.post(
-    "/login",
-    loginLimiter,
-    async (req: any, res: any): Promise<void> => {
-      const authHeader = req.headers.authorization;
-      const { email, password } = req.body;
+  // router.post(
+  //   "/login",
+  //   // loginLimiter,
+  //   async (req: any, res: any): Promise<void> => {
+  //     const authHeader = req.headers.authorization;
+  //     const { email, password } = req.body;
+  //     console.log(email, password);
 
-      if (authHeader) {
-        const token = authHeader.split(" ")[1];
+  //     if (authHeader) {
+  //       const token = authHeader.split(" ")[1];
 
-        try {
-          const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET || "your_jwt_secret"
-          );
-          return res.status(200).json({
-            message: "Usuário já está logado."
-          });
-        } catch (error: any) {
-          if (error.name === "TokenExpiredError") {
-            if (!email || !password) {
-              return res.status(401).json({
-                message:
-                  "Token expirado. Informe email e senha para fazer login novamente.",
-              });
-            }
+  //       try {
+  //         const decoded = jwt.verify(
+  //           token,
+  //           process.env.JWT_SECRET || "your_jwt_secret"
+  //         );
+  //         return res.status(200).json({
+  //           message: "Usuário já está logado.",
+  //         });
+  //       } catch (error: any) {
+  //         if (error.name === "TokenExpiredError") {
+  //           if (!email || !password) {
+  //             return res.status(401).json({
+  //               message:
+  //                 "Token expirado. Informe email e senha para fazer login novamente.",
+  //             });
+  //           }
 
-            const user = await prisma.user.findUnique({
-              where: { email },
-            });
+  //           const user = await prisma.user.findUnique({
+  //             where: { email },
+  //           });
 
-            if (!user) {
-              return res
-                .status(400)
-                .json({ message: "Usuário não encontrado." });
-            }
+  //           if (!user) {
+  //             return res
+  //               .status(400)
+  //               .json({ message: "Usuário não encontrado." });
+  //           }
 
-            const isPasswordValid = await bcrypt.compare(
-              password,
-              user.password
-            );
-            if (!isPasswordValid) {
-              return res.status(400).json({ message: "Senha inválida." });
-            }
+  //           const isPasswordValid = await bcrypt.compare(
+  //             password,
+  //             user.password
+  //           );
+  //           if (!isPasswordValid) {
+  //             return res.status(400).json({ message: "Senha inválida." });
+  //           }
 
-            const newToken = jwt.sign(
-              { id: user.id, email: user.email },
-              process.env.JWT_SECRET || "your_jwt_secret",
-              {
-                algorithm: "HS256",
-                expiresIn: "30m",
-              } 
-            );
+  //           const newToken = jwt.sign(
+  //             { id: user.id, email: user.email },
+  //             process.env.JWT_SECRET || "your_jwt_secret",
+  //             {
+  //               algorithm: "HS256",
+  //               expiresIn: "30m",
+  //             }
+  //           );
 
-            return res.json({
-              message: "Login renovado com sucesso!",
-              token: newToken,
-            });
-          } else if (error.name === "JsonWebTokenError") {
-            return res.status(401).json({ message: "Token inválido." });
-          } else {
-            return res.status(500).json({
-              message: "Erro ao verificar token.",
-              error: error.message,
+  //           return res.json({
+  //             message: "Login renovado com sucesso!",
+  //             token: newToken,
+  //           });
+  //         } else if (error.name === "JsonWebTokenError") {
+  //           return res.status(401).json({ message: "Token inválido." });
+  //         } else {
+  //           return res.status(500).json({
+  //             message: "Erro ao verificar token.",
+  //             error: error.message,
+  //           });
+  //         }
+  //       }
+  //     }
+
+  //     if (!email) {
+  //       res.status(400).json({ message: "Email não definido." });
+  //       return;
+  //     }
+
+  //     if (!password) {
+  //       res.status(400).json({ message: "Senha não definida." });
+  //       return;
+  //     }
+
+  //     const user = await prisma.user.findUnique({
+  //       where: { email },
+  //     });
+
+  //     if (!user) {
+  //       res.status(400).json({ message: "Usuário não encontrado." });
+  //       return;
+  //     }
+
+  //     const isPasswordValid = await bcrypt.compare(password, user.password);
+  //     if (!isPasswordValid) {
+  //       res.status(400).json({ message: "Senha inválida." });
+  //       return;
+  //     }
+
+  //     const token = jwt.sign(
+  //       { id: user.id, email: user.email },
+  //       process.env.JWT_SECRET || "your_jwt_secret",
+  //       {
+  //         algorithm: "HS256",
+  //         expiresIn: "30m",
+  //       }
+  //     );
+
+  //     res.json({ message: "Login bem-sucedido!", token });
+  //   }
+  // );
+  router.post("/login", async (req: any, res: any): Promise<void> => {
+    const authHeader = req.headers.authorization;
+    const { email, password, lembret } = req.body;
+
+    if (authHeader) {
+      const token = authHeader.split(" ")[1];
+
+      if (!token) {
+        return res.status(400).json({ message: "Token não fornecido." });
+      }
+
+      try {
+        const decoded = jwt.verify(
+          token,
+          process.env.JWT_SECRET || "your_jwt_secret"
+        );
+        return res.status(200).json({
+          message: "Usuário já está logado.",
+        });
+      } catch (error: any) {
+        if (error.name === "TokenExpiredError") {
+          if (!email || !password) {
+            return res.status(401).json({
+              message:
+                "Token expirado. Informe email e senha para fazer login novamente.",
             });
           }
+
+          const user = await prisma.user.findUnique({
+            where: { email },
+          });
+
+          if (!user) {
+            return res.status(400).json({ message: "Usuário não encontrado." });
+          }
+
+          const isPasswordValid = await bcrypt.compare(password, user.password);
+          if (!isPasswordValid) {
+            return res.status(400).json({ message: "Senha inválida." });
+          }
+
+          const newToken = jwt.sign(
+            { id: user.id, email: user.email },
+            process.env.JWT_SECRET || "your_jwt_secret",
+            { algorithm: "HS256", expiresIn: "30m" }
+          );
+          res.cookie("authToken", newToken, {
+            httpOnly: true,
+            maxAge: 30 * 60 * 1000, // 30 minutos
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+          });
+          return res.json({
+            message: "Login renovado com sucesso!",
+            token: newToken,
+          });
+        } else if (error.name === "JsonWebTokenError") {
+          // return res.status(401).json({ message: "Token inválido." });
+        } else {
+          return res.status(500).json({
+            message: "Erro ao verificar token.",
+            error: error.message,
+          });
         }
       }
+    }
 
-      if (!email) {
-        res.status(400).json({ message: "Email não definido." });
-        return;
-      }
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email ou senha não definidos." });
+    }
 
-      if (!password) {
-        res.status(400).json({ message: "Senha não definida." });
-        return;
-      }
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
-      const user = await prisma.user.findUnique({
-        where: { email },
+    if (!user) {
+      return res.status(400).json({ message: "Usuário não encontrado." });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: "Senha inválida." });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET || "your_jwt_secret",
+      { algorithm: "HS256", expiresIn: "30m" }
+    );
+
+    const UserAdmin = await prisma.admin.findUnique({
+      where: {
+        email: user.email,
+      },
+    });
+    res.cookie("authToken", token, {
+      httpOnly: true,
+      maxAge: 30 * 60 * 1000,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    res.json({
+      message: "Login bem-sucedido!",
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        role: UserAdmin.role,
+      },
+    });
+  });
+  router.post("/sigUp", async (req: Request, res: Response): Promise<void> => {
+    const {
+      email,
+      password,
+      name,
+    }: { email: string; password: string; name: string } = req.body;
+
+    if (!email || !password || !name) {
+      res.status(400).json({ message: "Todos os campos são obrigatórios." });
+      return;
+    }
+    const existingAccountAdmin = await prisma.admin.findUnique({
+      where: { email },
+    });
+
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser || existingAccountAdmin) {
+      res.status(400).json({ message: "Este email já está registrado." });
+      return;
+    }
+
+    const hashedPassword = await bcrypt.hash(String(password), 10);
+
+    try {
+      const newUserAccount = await prisma.admin.create({
+        data: {
+          email: email,
+          role: DefaultRole,
+        },
       });
 
-      if (!user) {
-        res.status(400).json({ message: "Usuário não encontrado." });
-        return;
-      }
-
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) {
-        res.status(400).json({ message: "Senha inválida." });
-        return;
-      }
+      const newUser = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name,
+        },
+      });
 
       const token = jwt.sign(
-        { id: user.id, email: user.email },
+        { id: newUser.id, email: newUser.email },
         process.env.JWT_SECRET || "your_jwt_secret",
         {
           algorithm: "HS256",
@@ -210,9 +380,112 @@ export default () => {
         }
       );
 
-      res.json({ message: "Login bem-sucedido!", token });
+      res.cookie("authToken", token, {
+        httpOnly: true, // Impede que o token seja acessado via JavaScript no cliente
+        maxAge: 30 * 60 * 1000, // Expiração de 30 minutos
+        secure: process.env.NODE_ENV === "production", // Só envia o cookie em HTTPS em produção
+        sameSite: "strict", // Previne o envio de cookies em requisições cross-site
+      });
+
+      res.status(201).json({
+        message: "Usuário criado com sucesso!",
+        token,
+        user: {
+          id: newUser.id,
+          email: newUser.email,
+          name: newUser.name,
+          role: newUserAccount.role,
+        },
+      });
+      return;
+    } catch (error) {
+      res
+        .status(500)
+        .json({ message: "Erro ao criar o usuário.", error: error.message });
     }
-  );
+  });
+
+  router.post("/checkAuth", async (req: any, res: any) => {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(401).json({ message: "Token não fornecido." });
+    }
+
+    try {
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || "your_jwt_secret"
+      ) as JwtPayload;
+
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+      });
+
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado." });
+      }
+
+      const UserAdmin = await prisma.admin.findUnique({
+        where: {
+          email: user.email,
+        },
+      });
+
+      return res.status(200).json({
+        message: "Token válido!",
+        success: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          avatar: user.avatar,
+          role: UserAdmin.role,
+        },
+      });
+    } catch (error) {
+      return res.status(401).json({
+        message: "Token inválido ou expirado.",
+        error: error.message,
+        success: false,
+      });
+    }
+  });
+  router.post("/logout", async (req: any, res: any) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      return res.status(401).json({ message: "Token não fornecido." });
+    }
+
+    const token = authHeader.split(" ")[1];
+    try {
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || "your_jwt_secret"
+      ) as JwtPayload;
+
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+      });
+
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado." });
+      }
+
+      return res.status(200).json({
+        message: "Deslogado com sucesso!",
+        success: true,
+        user: null,
+      });
+    } catch (error) {
+      return res.status(401).json({
+        message: "Token inválido ou expirado.",
+        error: error.message,
+        success: false,
+      });
+    }
+  });
+
   // http://localhost:4041/createLicense
   router.post("/createLicense", authenticateJWT, async (req: any, res: any) => {
     const { email, resource, ip, days } = req.body;

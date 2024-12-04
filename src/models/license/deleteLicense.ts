@@ -4,9 +4,11 @@ async function deleteLicense(
   prisma: PrismaClient,
   license: string
 ): Promise<boolean> {
+  
   const checkExistentLicense = await prisma.licenses.findMany({
     where: { license },
   });
+
   if (!checkExistentLicense) {
     return false;
   }
